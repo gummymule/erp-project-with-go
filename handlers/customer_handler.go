@@ -5,6 +5,7 @@ import (
 
 	"erp-project/models"
 	"erp-project/repositories"
+	"erp-project/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,10 +19,10 @@ func NewCustomerHandler(repo *repositories.CustomerRepository) *CustomerHandler 
 }
 
 type CreateCustomerRequest struct {
-	Name    string `json:"name" binding:"required"`
+	Name    string `json:"name" binding:"required,min=2,max=100"`
 	Email   string `json:"email" binding:"required,email"`
-	Phone   string `json:"phone"`
-	Address string `json:"address"`
+	Phone   string `json:"phone" binding:"omitempty,phone"`
+	Address string `json:"address" binding:"max=200"`
 }
 
 func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
@@ -47,12 +48,29 @@ func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
 }
 
 func (h *CustomerHandler) GetAllCustomers(c *gin.Context) {
-	customers, err := h.repo.GetAllCustomers()
+	page, pageSize := utils.GetPaginationParams(c)
+	search := c.Query("search")
+	email := c.Query("email")
+
+	customers, total, err := h.repo.GetCustomerWithPagination(page, pageSize, search, email)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve customers"})
 		return
 	}
-	c.JSON(http.StatusOK, customers)
+
+	totalPages := utils.CalculateTotalPages(total, pageSize)
+
+	response := utils.PaginatedResponse{
+		Data: customers,
+		Pagination: utils.Pagination{
+			Page:     page,
+			PageSize: pageSize,
+			Total:    total,
+			Pages:    totalPages,
+		},
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *CustomerHandler) GetCustomerByID(c *gin.Context) {

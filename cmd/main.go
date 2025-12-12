@@ -5,6 +5,7 @@ import (
 
 	"erp-project/database"
 	"erp-project/handlers"
+	"erp-project/middleware"
 	"erp-project/repositories"
 
 	"github.com/gin-gonic/gin"
@@ -29,6 +30,10 @@ func main() {
 
 	// Create Gin router
 	r := gin.Default()
+
+	// Add middleware
+	r.Use(middleware.Recovery())
+	r.Use(middleware.RequestLogger())
 
 	// Product routes
 	products := r.Group("/api/products")
@@ -61,6 +66,7 @@ func main() {
 		c.JSON(200, gin.H{
 			"status":   "OK",
 			"database": "connected",
+			"version":  "1.0.0",
 		})
 	})
 

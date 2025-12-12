@@ -3,6 +3,8 @@ package repositories
 import (
 	"database/sql"
 	"erp-project/models"
+	"erp-project/utils"
+	"fmt"
 	"log"
 )
 
@@ -40,37 +42,81 @@ func (r *ProductRepository) CreateProduct(product *models.Product) error {
 	return nil
 }
 
-// Get all Products
-func (r *ProductRepository) GetAllProducts() ([]*models.Product, error) {
-	query := `SELECT id, name, description, sku, price, quantity, category, created_at, updated_at FROM products`
-	rows, err := r.DB.Query(query)
+// Get products with pagination
+func (r *ProductRepository) GetProductsWithPagination(page, pageSize int, search, category string) ([]models.Product, int, error) {
+	// build where clause
+	var whereClause string
+	var args []interface{}
+
+	if search != "" {
+		whereClause = "WHERE (name LIKE ? OR description LIKE ? OR sku LIKE ?)"
+		searchTerm := "%" + search + "%"
+		args = append(args, searchTerm, searchTerm, searchTerm)
+	}
+
+	if category != "" {
+		if whereClause != "" {
+			whereClause += " AND category = ?"
+		} else {
+			whereClause = "WHERE category = ?"
+		}
+		args = append(args, category)
+	}
+
+	// get total count
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM products %s", whereClause)
+	var total int
+	err := r.DB.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
-		log.Printf("Error getting products: %v", err)
-		return nil, err
+		return nil, 0, err
+	}
+
+	// get paginated data
+	offset := utils.CalculateOffset(page, pageSize)
+	query := fmt.Sprintf(`
+		SELECT id, name, description, sku, price, quantity, category, created_at, updated_at
+		FROM products %s
+		ORDER BY created_at DESC
+		LIMIT ? OFFSET ?
+	`, whereClause)
+
+	// add pagination parameters to args
+	args = append(args, pageSize, offset)
+
+	rows, err := r.DB.Query(query, args...)
+	if err != nil {
+		return nil, 0, err
 	}
 	defer rows.Close()
 
-	var products []*models.Product
+	var products []models.Product
 	for rows.Next() {
-		product := &models.Product{}
+		var p models.Product
 		err := rows.Scan(
-			&product.ID,
-			&product.Name,
-			&product.Description,
-			&product.SKU,
-			&product.Price,
-			&product.Quantity,
-			&product.Category,
-			&product.CreatedAt,
-			&product.UpdatedAt,
+			&p.ID,
+			&p.Name,
+			&p.Description,
+			&p.SKU,
+			&p.Price,
+			&p.Quantity,
+			&p.Category,
+			&p.CreatedAt,
+			&p.UpdatedAt,
 		)
 		if err != nil {
-			log.Printf("Error scanning product: %v", err)
-			return nil, err
+			log.Printf("Error scanning product: %v\n", err)
+			continue
 		}
-		products = append(products, product)
+		products = append(products, p)
 	}
-	return products, nil
+
+	return products, total, nil
+}
+
+// Get all Products
+func (r *ProductRepository) GetAllProducts() ([]models.Product, error) {
+	products, _, err := r.GetProductsWithPagination(1, 1000, "", "")
+	return products, err
 }
 
 // Get product by ID

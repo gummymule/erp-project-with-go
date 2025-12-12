@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"erp-project/models"
 	"erp-project/repositories"
+	"erp-project/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,27 +21,31 @@ func NewProductHandler(repo *repositories.ProductRepository) *ProductHandler {
 }
 
 type CreateProductRequest struct {
-	Name        string  `json:"name" binding:"required"`
-	Description string  `json:"description"`
-	SKU         string  `json:"sku" binding:"required"`
+	Name        string  `json:"name" binding:"required,min=2,max=100"`
+	Description string  `json:"description" binding:"max=500"`
+	SKU         string  `json:"sku" binding:"required,sku"`
 	Price       float64 `json:"price" binding:"required,gt=0"`
 	Quantity    int     `json:"quantity" binding:"required,gte=0"`
-	Category    string  `json:"category"`
+	Category    string  `json:"category" binding:"max=50"`
 }
 
 type UpdateProductRequest struct {
-	Name        string  `json:"name"`
-	Description string  `json:"description"`
-	SKU         string  `json:"sku"`
-	Price       float64 `json:"price" binding:"gt=0"`
-	Quantity    int     `json:"quantity" binding:"gte=0"`
-	Category    string  `json:"category"`
+	Name        string  `json:"name" binding:"omitempty,min=2,max=100"`
+	Description string  `json:"description" binding:"omitempty,max=500"`
+	SKU         string  `json:"sku" binding:"omitempty,sku"`
+	Price       float64 `json:"price" binding:"omitempty,gt=0"`
+	Quantity    int     `json:"quantity" binding:"omitempty,gte=0"`
+	Category    string  `json:"category" binding:"omitempty,max=50"`
 }
 
 func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	var req CreateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.ErrorResponse(c, utils.NewAppError(
+			http.StatusBadRequest,
+			"Validation Error",
+			err.Error(),
+		))
 		return
 	}
 
@@ -53,21 +59,57 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	)
 
 	if err := h.repo.CreateProduct(product); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create product"})
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			utils.ErrorResponse(c, utils.NewAppError(
+				http.StatusBadRequest,
+				"Duplicated SKU",
+				"A product with this SKU already exists",
+			))
+			return
+		}
+
+		utils.ErrorResponse(c, utils.NewAppError(
+			http.StatusInternalServerError,
+			"Failed to create product",
+			err.Error(),
+		))
 		return
 	}
 
-	c.JSON(http.StatusCreated, product)
+	utils.CreatedResponse(c, product)
+
 }
 
 func (h *ProductHandler) GetAllProducts(c *gin.Context) {
-	products, err := h.repo.GetAllProducts()
+	// Get pagination parameters
+	page, pageSize := utils.GetPaginationParams(c)
+
+	// get search and filter parameters
+	search := c.Query("search")
+	category := c.Query("category")
+
+	// get products with pagination
+	products, total, err := h.repo.GetProductsWithPagination(page, pageSize, search, category)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve products"})
 		return
 	}
 
-	c.JSON(http.StatusOK, products)
+	// calculate pagination details
+	totalPages := utils.CalculateTotalPages(total, pageSize)
+
+	// create paginated response
+	response := utils.PaginatedResponse{
+		Data: products,
+		Pagination: utils.Pagination{
+			Page:     page,
+			PageSize: pageSize,
+			Total:    total,
+			Pages:    totalPages,
+		},
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *ProductHandler) GetProductByID(c *gin.Context) {

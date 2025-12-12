@@ -3,6 +3,8 @@ package repositories
 import (
 	"database/sql"
 	"erp-project/models"
+	"erp-project/utils"
+	"fmt"
 	"log"
 )
 
@@ -34,6 +36,70 @@ func (r *CustomerRepository) CreateCustomer(customer *models.Customer) error {
 		return err
 	}
 	return nil
+}
+
+func (r *CustomerRepository) GetCustomerWithPagination(page, pageSize int, search, email string) ([]models.Customer, int, error) {
+	var whereClause string
+	var args []interface{}
+
+	if search != "" {
+		whereClause = "WHERE (name LIKE ? OR email LIKE ? OR phone LIKE ?)"
+		searchTerm := "%" + search + "%"
+		args = append(args, searchTerm, searchTerm, searchTerm)
+	}
+
+	if email != "" {
+		if whereClause != "" {
+			whereClause += " AND email = ?"
+		} else {
+			whereClause = "WHERE email = ?"
+		}
+		args = append(args, email)
+	}
+
+	// get total count
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM customers %s", whereClause)
+	var total int
+	err := r.DB.QueryRow(countQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get paginated data
+	offset := utils.CalculateOffset(page, pageSize)
+	query := fmt.Sprintf(`
+		SELECT id, name, email, phone, address, created_at
+		FROM customers %s
+		ORDER BY created_at DESC
+		LIMIT ? OFFSET ?
+	`, whereClause)
+
+	args = append(args, pageSize, offset)
+
+	rows, err := r.DB.Query(query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var customers []models.Customer
+	for rows.Next() {
+		var c models.Customer
+		err := rows.Scan(
+			&c.ID,
+			&c.Name,
+			&c.Email,
+			&c.Phone,
+			&c.Address,
+			&c.CreatedAt,
+		)
+		if err != nil {
+			continue
+		}
+		customers = append(customers, c)
+	}
+
+	return customers, total, nil
 }
 
 func (r *CustomerRepository) GetAllCustomers() ([]*models.Customer, error) {

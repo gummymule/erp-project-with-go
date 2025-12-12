@@ -1,0 +1,5 @@
+# .railway/config.toml at project root
+[build]
+builder = "nixpacks"
+buildCommand = "go build -o main ./cmd/main.go"
+startCommand = "./main"

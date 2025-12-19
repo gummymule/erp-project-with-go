@@ -112,6 +112,16 @@ func (h *ProductHandler) GetAllProducts(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+func (h *ProductHandler) GetListProducts(c *gin.Context) {
+	products, err := h.repo.GetAll()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch products"})
+		return
+	}
+
+	c.JSON(http.StatusOK, products)
+}
+
 func (h *ProductHandler) GetProductByID(c *gin.Context) {
 	id := c.Param("id")
 	product, err := h.repo.GetProductByID(id)

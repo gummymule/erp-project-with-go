@@ -42,6 +42,38 @@ func (r *ProductRepository) CreateProduct(product *models.Product) error {
 	return nil
 }
 
+func (r *ProductRepository) GetAll() ([]models.Product, error) {
+	query := `SELECT id, name, description, sku, price, quantity, category, created_at, updated_at FROM products`
+	rows, err := r.DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []models.Product
+	for rows.Next() {
+		var p models.Product
+		err := rows.Scan(
+			&p.ID,
+			&p.Name,
+			&p.Description,
+			&p.SKU,
+			&p.Price,
+			&p.Quantity,
+			&p.Category,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+		)
+		if err != nil {
+			log.Println("Error scanning product:", err)
+			continue
+		}
+		products = append(products, p)
+	}
+
+	return products, nil
+}
+
 // Get products with pagination
 func (r *ProductRepository) GetProductsWithPagination(page, pageSize int, search, category string) ([]models.Product, int, error) {
 	// build where clause

@@ -2,96 +2,169 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
+	"os"
+	"strings"
 
 	"github.com/glebarez/sqlite"
+	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
 var DB *sql.DB
 
 func InitDB() error {
 	var err error
+	var driverName string
 
-	// This one uses "sqlite" as driver name
-	dbPath := "erp.db"
-	DB, err = sql.Open(sqlite.DriverName, dbPath)
+	// Check if we're on Railway (PostgreSQL) or local (SQLite)
+	dbURL := os.Getenv("DATABASE_URL")
+
+	if dbURL != "" && strings.Contains(dbURL, "postgres://") {
+		// Railway PostgreSQL
+		driverName = "postgres"
+		DB, err = sql.Open(driverName, dbURL)
+		log.Println("Using PostgreSQL (Railway)")
+	} else {
+		// Local SQLite development
+		driverName = "sqlite"
+		dbPath := "erp.db"
+
+		// You can also use in-memory for testing
+		if os.Getenv("IN_MEMORY_DB") == "true" {
+			dbPath = ":memory:"
+			log.Println("Using in-memory SQLite")
+		} else {
+			log.Printf("Using SQLite file: %s", dbPath)
+		}
+
+		DB, err = sql.Open(sqlite.DriverName, dbPath)
+	}
+
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	// Test the connection
 	err = DB.Ping()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	log.Println("Connected to SQLite database")
+	log.Println("✅ Database connected successfully")
 	return createTables()
 }
 
 func createTables() error {
-	// Products table
-	productTable := `
-	CREATE TABLE IF NOT EXISTS products (
-		id TEXT PRIMARY KEY,
-		name TEXT NOT NULL,
-		description TEXT,
-		sku TEXT UNIQUE NOT NULL,
-		price REAL NOT NULL,
-		quantity INTEGER NOT NULL,
-		category TEXT,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	);
-	`
+	// Determine database type for SQL dialect
+	dbURL := os.Getenv("DATABASE_URL")
+	isPostgreSQL := dbURL != "" && strings.Contains(dbURL, "postgres://")
 
-	// Customers table
-	customerTable := `
-	CREATE TABLE IF NOT EXISTS customers (
-		id TEXT PRIMARY KEY, 
-		name TEXT NOT NULL, 
-		email TEXT UNIQUE NOT NULL,
-		phone TEXT,
-		address TEXT,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	);
-	`
+	var productTable, customerTable, orderTable, orderItemTable string
 
-	// Orders table
-	orderTable := `
-	CREATE TABLE IF NOT EXISTS orders (
-		id TEXT PRIMARY KEY,
-		customer_id TEXT NOT NULL,
-		total_amount REAL NOT NULL,
-		status TEXT DEFAULT 'pending',
-		order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (customer_id) REFERENCES customers(id)
-	);
-	`
+	if isPostgreSQL {
+		// PostgreSQL syntax
+		productTable = `
+		CREATE TABLE IF NOT EXISTS products (
+			id VARCHAR(255) PRIMARY KEY,
+			name VARCHAR(255) NOT NULL,
+			description TEXT,
+			sku VARCHAR(255) UNIQUE NOT NULL,
+			price DECIMAL(10,2) NOT NULL,
+			quantity INTEGER NOT NULL,
+			category VARCHAR(100),
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);`
 
-	// Order Items table (many-to-many relationship)
-	orderItemTable := `
-	CREATE TABLE IF NOT EXISTS order_items (
-		id TEXT PRIMARY KEY,
-		order_id TEXT NOT NULL,
-		product_id TEXT NOT NULL,
-		quantity INTEGER NOT NULL,
-		unit_price REAL NOT NULL,
-		total_price REAL NOT NULL,
-		FOREIGN KEY (order_id) REFERENCES orders(id),
-		FOREIGN KEY (product_id) REFERENCES products(id)
-	);
-	`
+		customerTable = `
+		CREATE TABLE IF NOT EXISTS customers (
+			id VARCHAR(255) PRIMARY KEY, 
+			name VARCHAR(255) NOT NULL, 
+			email VARCHAR(255) UNIQUE NOT NULL,
+			phone VARCHAR(50),
+			address TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);`
+
+		orderTable = `
+		CREATE TABLE IF NOT EXISTS orders (
+			id VARCHAR(255) PRIMARY KEY,
+			customer_id VARCHAR(255) NOT NULL,
+			total_amount DECIMAL(10,2) NOT NULL,
+			status VARCHAR(50) DEFAULT 'pending',
+			order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+		);`
+
+		orderItemTable = `
+		CREATE TABLE IF NOT EXISTS order_items (
+			id VARCHAR(255) PRIMARY KEY,
+			order_id VARCHAR(255) NOT NULL,
+			product_id VARCHAR(255) NOT NULL,
+			quantity INTEGER NOT NULL,
+			unit_price DECIMAL(10,2) NOT NULL,
+			total_price DECIMAL(10,2) NOT NULL,
+			FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+			FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+		);`
+	} else {
+		// SQLite syntax (your original)
+		productTable = `
+		CREATE TABLE IF NOT EXISTS products (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			description TEXT,
+			sku TEXT UNIQUE NOT NULL,
+			price REAL NOT NULL,
+			quantity INTEGER NOT NULL,
+			category TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);`
+
+		customerTable = `
+		CREATE TABLE IF NOT EXISTS customers (
+			id TEXT PRIMARY KEY, 
+			name TEXT NOT NULL, 
+			email TEXT UNIQUE NOT NULL,
+			phone TEXT,
+			address TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);`
+
+		orderTable = `
+		CREATE TABLE IF NOT EXISTS orders (
+			id TEXT PRIMARY KEY,
+			customer_id TEXT NOT NULL,
+			total_amount REAL NOT NULL,
+			status TEXT DEFAULT 'pending',
+			order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (customer_id) REFERENCES customers(id)
+		);`
+
+		orderItemTable = `
+		CREATE TABLE IF NOT EXISTS order_items (
+			id TEXT PRIMARY KEY,
+			order_id TEXT NOT NULL,
+			product_id TEXT NOT NULL,
+			quantity INTEGER NOT NULL,
+			unit_price REAL NOT NULL,
+			total_price REAL NOT NULL,
+			FOREIGN KEY (order_id) REFERENCES orders(id),
+			FOREIGN KEY (product_id) REFERENCES products(id)
+		);`
+	}
 
 	tables := []string{productTable, customerTable, orderTable, orderItemTable}
 
 	for _, table := range tables {
 		_, err := DB.Exec(table)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create table: %w", err)
 		}
 	}
 
-	log.Println("Tables created successfully")
+	log.Println("✅ Tables created successfully")
 	return nil
 }

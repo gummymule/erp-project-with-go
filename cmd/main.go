@@ -32,7 +32,23 @@ func main() {
 	// Create Gin router
 	r := gin.Default()
 
-	// Add middleware
+	// ✅ ADD CORS MIDDLEWARE (Fixes POST requests from browser/Jam.dev)
+	r.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+
+		// Handle OPTIONS method (CORS preflight)
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
+
+	// Add your existing middleware
 	r.Use(middleware.Recovery())
 	r.Use(middleware.RequestLogger())
 
@@ -50,39 +66,52 @@ func main() {
 		})
 	})
 
-	// Product routes
-	products := r.Group("/api/products")
+	// ✅ FIXED: Product routes - Add trailing slash to group to avoid redirects
+	products := r.Group("/api/products/") // Add trailing slash here
 	{
-		products.POST("/", productHandler.CreateProduct)
-		products.GET("/", productHandler.GetAllProducts)
-		products.GET("/list", productHandler.GetListProducts)
-		products.GET("/:id", productHandler.GetProductByID)
-		products.PUT("/:id", productHandler.UpdateProduct)
-		products.DELETE("/:id", productHandler.DeleteProduct)
+		products.POST("", productHandler.CreateProduct)      // Empty string
+		products.GET("", productHandler.GetAllProducts)      // Empty string
+		products.GET("list", productHandler.GetListProducts) // Relative path
+		products.GET(":id", productHandler.GetProductByID)   // Relative path
+		products.PUT(":id", productHandler.UpdateProduct)    // Relative path
+		products.DELETE(":id", productHandler.DeleteProduct) // Relative path
 	}
 
-	// Customer routes
-	customers := r.Group("/api/customers")
+	// ✅ FIXED: Customer routes
+	customers := r.Group("/api/customers/")
 	{
-		customers.POST("/", customerHandler.CreateCustomer)
-		customers.GET("/", customerHandler.GetAllCustomers)
-		customers.GET("/:id", customerHandler.GetCustomerByID)
+		customers.POST("", customerHandler.CreateCustomer)
+		customers.GET("", customerHandler.GetAllCustomers)
+		customers.GET(":id", customerHandler.GetCustomerByID)
 	}
 
-	// Order routes
-	orders := r.Group("/api/orders")
+	// ✅ FIXED: Order routes
+	orders := r.Group("/api/orders/")
 	{
-		orders.POST("/", orderHandler.CreateOrder)
-		orders.GET("/", orderHandler.GetOrders)
-		orders.GET("/:id/items", orderHandler.GetOrderItems)
+		orders.POST("", orderHandler.CreateOrder)
+		orders.GET("", orderHandler.GetOrders)
+		orders.GET(":id/items", orderHandler.GetOrderItems)
 	}
 
-	// Health check (already correct)
+	// Health check
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":   "OK",
 			"database": "connected",
 			"version":  "1.0.0",
+		})
+	})
+
+	// Debug endpoint to test database
+	r.GET("/debug/db", func(c *gin.Context) {
+		var productCount, customerCount int
+		database.DB.QueryRow("SELECT COUNT(*) FROM products").Scan(&productCount)
+		database.DB.QueryRow("SELECT COUNT(*) FROM customers").Scan(&customerCount)
+
+		c.JSON(200, gin.H{
+			"database":        "connected",
+			"products_count":  productCount,
+			"customers_count": customerCount,
 		})
 	})
 

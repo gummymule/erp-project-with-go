@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"io/ioutil"
 	"log"
 	"os"
+	"time"
 
 	"erp-project/database"
 	"erp-project/handlers"
@@ -42,6 +45,28 @@ func main() {
 	config.AllowCredentials = true
 
 	r.Use(cors.New(config))
+
+	r.Use(func(c *gin.Context) {
+		// Log ALL requests with full details
+		log.Printf("🚀 %s %s", c.Request.Method, c.Request.URL.String())
+		log.Printf("   Headers: %v", c.Request.Header)
+		log.Printf("   Content-Length: %d", c.Request.ContentLength)
+
+		// For POST/PUT, capture and log the body
+		if c.Request.Method == "POST" || c.Request.Method == "PUT" {
+			bodyBytes, _ := c.GetRawData()
+			log.Printf("   Body: %s", string(bodyBytes))
+			// Restore the body
+			c.Request.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+
+		start := time.Now()
+		c.Next()
+		duration := time.Since(start)
+
+		log.Printf("✅ %s %s → %d (%v)",
+			c.Request.Method, c.Request.URL.Path, c.Writer.Status(), duration)
+	})
 
 	// Add your existing middleware
 	r.Use(middleware.Recovery())
@@ -107,6 +132,24 @@ func main() {
 			"database":        "connected",
 			"products_count":  productCount,
 			"customers_count": customerCount,
+		})
+	})
+
+	// Add this BEFORE your product routes
+	r.POST("/api/test-simple", func(c *gin.Context) {
+		log.Println("🎯 SIMPLE POST ENDPOINT HIT!")
+
+		var data map[string]interface{}
+		if err := c.ShouldBindJSON(&data); err != nil {
+			c.JSON(400, gin.H{"error": err.Error()})
+			return
+		}
+
+		log.Printf("📦 Received data: %v", data)
+		c.JSON(201, gin.H{
+			"message":   "Simple POST works!",
+			"data":      data,
+			"timestamp": time.Now(),
 		})
 	})
 

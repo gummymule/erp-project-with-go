@@ -6,6 +6,8 @@ import (
 	"erp-project/utils"
 	"fmt"
 	"log"
+	"strings"
+	"time"
 )
 
 type ProductRepository struct {
@@ -16,11 +18,11 @@ func NewProductRepository(db *sql.DB) *ProductRepository {
 	return &ProductRepository{DB: db}
 }
 
-// Create product
+// Create product - FIXED: Changed ? to $1, $2, etc.
 func (r *ProductRepository) CreateProduct(product *models.Product) error {
 	query := `
 		INSERT INTO products (id, name, description, sku, price, quantity, category, created_at, updated_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	_, err := r.DB.Exec(
 		query,
@@ -74,45 +76,54 @@ func (r *ProductRepository) GetAll() ([]models.Product, error) {
 	return products, nil
 }
 
-// Get products with pagination
+// Get products with pagination - FIXED: Parameter placeholders
 func (r *ProductRepository) GetProductsWithPagination(page, pageSize int, search, category string) ([]models.Product, int, error) {
-	// build where clause
-	var whereClause string
+	// Build WHERE clause with PostgreSQL placeholders
+	var whereClauses []string
 	var args []interface{}
+	argCounter := 1
 
 	if search != "" {
-		whereClause = "WHERE (name LIKE ? OR description LIKE ? OR sku LIKE ?)"
+		whereClauses = append(whereClauses, fmt.Sprintf("(name LIKE $%d OR description LIKE $%d OR sku LIKE $%d)",
+			argCounter, argCounter+1, argCounter+2))
 		searchTerm := "%" + search + "%"
 		args = append(args, searchTerm, searchTerm, searchTerm)
+		argCounter += 3
 	}
 
 	if category != "" {
-		if whereClause != "" {
-			whereClause += " AND category = ?"
-		} else {
-			whereClause = "WHERE category = ?"
-		}
+		whereClauses = append(whereClauses, fmt.Sprintf("category = $%d", argCounter))
 		args = append(args, category)
+		argCounter++
 	}
 
-	// get total count
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM products %s", whereClause)
+	whereClause := ""
+	if len(whereClauses) > 0 {
+		whereClause = "WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	// Get total count
+	countQuery := "SELECT COUNT(*) FROM products"
+	if whereClause != "" {
+		countQuery += " " + whereClause
+	}
+
 	var total int
 	err := r.DB.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
 		return nil, 0, err
 	}
 
-	// get paginated data
+	// Get paginated data
 	offset := utils.CalculateOffset(page, pageSize)
 	query := fmt.Sprintf(`
 		SELECT id, name, description, sku, price, quantity, category, created_at, updated_at
 		FROM products %s
 		ORDER BY created_at DESC
-		LIMIT ? OFFSET ?
-	`, whereClause)
+		LIMIT $%d OFFSET $%d
+	`, whereClause, argCounter, argCounter+1)
 
-	// add pagination parameters to args
+	// Add pagination parameters
 	args = append(args, pageSize, offset)
 
 	rows, err := r.DB.Query(query, args...)
@@ -151,9 +162,9 @@ func (r *ProductRepository) GetAllProducts() ([]models.Product, error) {
 	return products, err
 }
 
-// Get product by ID
+// Get product by ID - FIXED: Changed ? to $1
 func (r *ProductRepository) GetProductByID(id string) (*models.Product, error) {
-	query := `SELECT id, name, description, sku, price, quantity, category, created_at, updated_at FROM products WHERE id = ?`
+	query := `SELECT id, name, description, sku, price, quantity, category, created_at, updated_at FROM products WHERE id = $1`
 	row := r.DB.QueryRow(query, id)
 	product := &models.Product{}
 	err := row.Scan(
@@ -174,13 +185,16 @@ func (r *ProductRepository) GetProductByID(id string) (*models.Product, error) {
 	return product, nil
 }
 
-// Update product
+// Update product - FIXED: Changed ? to $1, $2, etc.
 func (r *ProductRepository) UpdateProduct(product *models.Product) error {
 	query := `
 		UPDATE products 
-		SET name = ?, description = ?, sku = ?, price = ?, quantity = ?, category = ?, updated_at = ? 
-		WHERE id = ?
+		SET name = $1, description = $2, sku = $3, price = $4, quantity = $5, category = $6, updated_at = $7 
+		WHERE id = $8
 	`
+	// Update timestamp
+	product.UpdatedAt = time.Now()
+
 	_, err := r.DB.Exec(
 		query,
 		product.Name,
@@ -199,9 +213,9 @@ func (r *ProductRepository) UpdateProduct(product *models.Product) error {
 	return nil
 }
 
-// Delete product
+// Delete product - FIXED: Changed ? to $1
 func (r *ProductRepository) DeleteProduct(id string) error {
-	query := `DELETE FROM products WHERE id = ?`
+	query := `DELETE FROM products WHERE id = $1`
 	_, err := r.DB.Exec(query, id)
 	if err != nil {
 		log.Printf("Error deleting product: %v", err)
@@ -210,14 +224,13 @@ func (r *ProductRepository) DeleteProduct(id string) error {
 	return nil
 }
 
-// Update product quantity
+// Update product quantity - FIXED: PostgreSQL CURRENT_TIMESTAMP syntax
 func (r *ProductRepository) UpdateProductQuantity(id string, quantity int) error {
-	query := `UPDATE products SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+	query := `UPDATE products SET quantity = $1, updated_at = NOW() WHERE id = $2`
 	_, err := r.DB.Exec(query, quantity, id)
 	if err != nil {
 		log.Printf("Error updating product quantity: %v", err)
 		return err
 	}
 	return nil
-
 }

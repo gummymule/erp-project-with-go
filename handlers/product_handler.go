@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -59,7 +60,10 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 	)
 
 	if err := h.repo.CreateProduct(product); err != nil {
-		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+		// FIXED: PostgreSQL UNIQUE constraint error detection
+		if strings.Contains(err.Error(), "duplicate key value") ||
+			strings.Contains(err.Error(), "violates unique constraint") ||
+			strings.Contains(err.Error(), "already exists") {
 			utils.ErrorResponse(c, utils.NewAppError(
 				http.StatusBadRequest,
 				"Duplicated SKU",
@@ -68,16 +72,18 @@ func (h *ProductHandler) CreateProduct(c *gin.Context) {
 			return
 		}
 
+		// ADD LOGGING for debugging
+		log.Printf("PostgreSQL CreateProduct error: %v", err)
+
 		utils.ErrorResponse(c, utils.NewAppError(
 			http.StatusInternalServerError,
 			"Failed to create product",
-			err.Error(),
+			"Database error occurred",
 		))
 		return
 	}
 
 	utils.CreatedResponse(c, product)
-
 }
 
 func (h *ProductHandler) GetAllProducts(c *gin.Context) {
@@ -91,6 +97,8 @@ func (h *ProductHandler) GetAllProducts(c *gin.Context) {
 	// get products with pagination
 	products, total, err := h.repo.GetProductsWithPagination(page, pageSize, search, category)
 	if err != nil {
+		// ADD LOGGING HERE:
+		log.Printf("PostgreSQL error in GetAllProducts: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve products"})
 		return
 	}

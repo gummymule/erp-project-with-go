@@ -20,9 +20,11 @@ func (r *OrderRepository) CreateOrder(order *models.Order) error {
 		log.Printf("Error starting transaction: %v", err)
 		return err
 	}
+
+	// FIXED: Changed ? to $1, $2, etc.
 	query := `
 		INSERT INTO orders (id, customer_id, total_amount, status, order_date) 
-		VALUES (?, ?, ?, ?, ?)
+		VALUES ($1, $2, $3, $4, $5)
 	`
 	_, err = tx.Exec(
 		query,
@@ -49,10 +51,10 @@ func (r *OrderRepository) CreateOrderWithItems(order *models.Order, items []*mod
 		return err
 	}
 
-	// Insert order
+	// FIXED: Changed ? to $1, $2, etc.
 	orderQuery := `
 		INSERT INTO orders (id, customer_id, total_amount, status, order_date) 
-		VALUES (?, ?, ?, ?, ?)
+		VALUES ($1, $2, $3, $4, $5)
 	`
 	_, err = tx.Exec(
 		orderQuery,
@@ -68,10 +70,10 @@ func (r *OrderRepository) CreateOrderWithItems(order *models.Order, items []*mod
 		return err
 	}
 
-	// Insert order items
+	// FIXED: Changed ? to $1, $2, etc.
 	itemQuery := `
 		INSERT INTO order_items (id, order_id, product_id, quantity, unit_price, total_price) 
-		VALUES (?, ?, ?, ?, ?, ?)
+		VALUES ($1, $2, $3, $4, $5, $6)
 	`
 	for _, item := range items {
 		_, err = tx.Exec(
@@ -89,9 +91,9 @@ func (r *OrderRepository) CreateOrderWithItems(order *models.Order, items []*mod
 			return err
 		}
 
-		// Update product quantity
+		// FIXED: Changed ? to $1, $2
 		updateQuery := `
-			UPDATE products SET quantity = quantity - ? WHERE id = ?
+			UPDATE products SET quantity = quantity - $1 WHERE id = $2
 		`
 		_, err = tx.Exec(updateQuery, item.Quantity, item.ProductID)
 		if err != nil {
@@ -139,11 +141,12 @@ func (r *OrderRepository) GetOrders() ([]*models.Order, error) {
 }
 
 func (r *OrderRepository) GetOrderItems(orderID string) ([]models.OrderItem, error) {
+	// FIXED: Changed ? to $1
 	query := `
 		SELECT oi.id, oi.order_id, oi.product_id, oi.quantity, oi.unit_price, oi.total_price, p.name
 		FROM order_items oi
 		LEFT JOIN products p ON oi.product_id = p.id
-		WHERE oi.order_id = ?
+		WHERE oi.order_id = $1
 	`
 	rows, err := r.DB.Query(query, orderID)
 	if err != nil {

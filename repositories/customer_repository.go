@@ -6,6 +6,7 @@ import (
 	"erp-project/utils"
 	"fmt"
 	"log"
+	"strings"
 )
 
 type CustomerRepository struct {
@@ -17,9 +18,10 @@ func NewCustomerRepository(db *sql.DB) *CustomerRepository {
 }
 
 func (r *CustomerRepository) CreateCustomer(customer *models.Customer) error {
+	// FIXED: Changed ? to $1, $2, etc.
 	query := `
 		INSERT INTO customers (id, name, email, phone, address, created_at) 
-		VALUES (?, ?, ?, ?, ?, ?)
+		VALUES ($1, $2, $3, $4, $5, $6)
 	`
 	_, err := r.DB.Exec(
 		query,
@@ -39,26 +41,36 @@ func (r *CustomerRepository) CreateCustomer(customer *models.Customer) error {
 }
 
 func (r *CustomerRepository) GetCustomerWithPagination(page, pageSize int, search, email string) ([]models.Customer, int, error) {
-	var whereClause string
+	// Build WHERE clause with PostgreSQL placeholders
+	var whereClauses []string
 	var args []interface{}
+	argCounter := 1
 
 	if search != "" {
-		whereClause = "WHERE (name LIKE ? OR email LIKE ? OR phone LIKE ?)"
+		whereClauses = append(whereClauses, fmt.Sprintf("(name LIKE $%d OR email LIKE $%d OR phone LIKE $%d)",
+			argCounter, argCounter+1, argCounter+2))
 		searchTerm := "%" + search + "%"
 		args = append(args, searchTerm, searchTerm, searchTerm)
+		argCounter += 3
 	}
 
 	if email != "" {
-		if whereClause != "" {
-			whereClause += " AND email = ?"
-		} else {
-			whereClause = "WHERE email = ?"
-		}
+		whereClauses = append(whereClauses, fmt.Sprintf("email = $%d", argCounter))
 		args = append(args, email)
+		argCounter++
 	}
 
-	// get total count
-	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM customers %s", whereClause)
+	whereClause := ""
+	if len(whereClauses) > 0 {
+		whereClause = "WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	// Get total count
+	countQuery := "SELECT COUNT(*) FROM customers"
+	if whereClause != "" {
+		countQuery += " " + whereClause
+	}
+
 	var total int
 	err := r.DB.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
@@ -71,9 +83,10 @@ func (r *CustomerRepository) GetCustomerWithPagination(page, pageSize int, searc
 		SELECT id, name, email, phone, address, created_at
 		FROM customers %s
 		ORDER BY created_at DESC
-		LIMIT ? OFFSET ?
-	`, whereClause)
+		LIMIT $%d OFFSET $%d
+	`, whereClause, argCounter, argCounter+1)
 
+	// Add pagination parameters
 	args = append(args, pageSize, offset)
 
 	rows, err := r.DB.Query(query, args...)
@@ -94,6 +107,7 @@ func (r *CustomerRepository) GetCustomerWithPagination(page, pageSize int, searc
 			&c.CreatedAt,
 		)
 		if err != nil {
+			log.Printf("Error scanning customer: %v", err)
 			continue
 		}
 		customers = append(customers, c)
@@ -132,7 +146,8 @@ func (r *CustomerRepository) GetAllCustomers() ([]*models.Customer, error) {
 }
 
 func (r *CustomerRepository) GetCustomerByID(id string) (*models.Customer, error) {
-	query := `SELECT id, name, email, phone, address, created_at FROM customers WHERE id = ?`
+	// FIXED: Changed ? to $1
+	query := `SELECT id, name, email, phone, address, created_at FROM customers WHERE id = $1`
 	row := r.DB.QueryRow(query, id)
 
 	customer := &models.Customer{}

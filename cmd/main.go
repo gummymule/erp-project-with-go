@@ -9,6 +9,7 @@ import (
 	"erp-project/middleware"
 	"erp-project/repositories"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,21 +33,15 @@ func main() {
 	// Create Gin router
 	r := gin.Default()
 
-	// ✅ ADD CORS MIDDLEWARE (Fixes POST requests from browser/Jam.dev)
-	r.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+	// ✅ ADD CORS MIDDLEWARE
+	config := cors.DefaultConfig()
+	config.AllowAllOrigins = true // Allow all origins for now
+	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Authorization"}
+	config.ExposeHeaders = []string{"Content-Length"}
+	config.AllowCredentials = true
 
-		// Handle OPTIONS method (CORS preflight)
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
-		c.Next()
-	})
+	r.Use(cors.New(config))
 
 	// Add your existing middleware
 	r.Use(middleware.Recovery())

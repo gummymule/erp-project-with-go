@@ -61,31 +61,31 @@ func main() {
 		})
 	})
 
-	// ✅ FIXED: Product routes - Add trailing slash to group to avoid redirects
-	products := r.Group("/api/products/") // Add trailing slash here
+	// ✅ CORRECTED: NO trailing slash in groups!
+	products := r.Group("/api/products") // NO trailing slash
 	{
-		products.POST("", productHandler.CreateProduct)      // Empty string
-		products.GET("", productHandler.GetAllProducts)      // Empty string
-		products.GET("list", productHandler.GetListProducts) // Relative path
-		products.GET(":id", productHandler.GetProductByID)   // Relative path
-		products.PUT(":id", productHandler.UpdateProduct)    // Relative path
-		products.DELETE(":id", productHandler.DeleteProduct) // Relative path
+		products.POST("", productHandler.CreateProduct)      // POST /api/products
+		products.GET("", productHandler.GetAllProducts)      // GET /api/products
+		products.GET("list", productHandler.GetListProducts) // GET /api/products/list
+		products.GET(":id", productHandler.GetProductByID)   // GET /api/products/:id
+		products.PUT(":id", productHandler.UpdateProduct)    // PUT /api/products/:id
+		products.DELETE(":id", productHandler.DeleteProduct) // DELETE /api/products/:id
 	}
 
-	// ✅ FIXED: Customer routes
-	customers := r.Group("/api/customers/")
+	// ✅ CORRECTED: NO trailing slash
+	customers := r.Group("/api/customers")
 	{
-		customers.POST("", customerHandler.CreateCustomer)
-		customers.GET("", customerHandler.GetAllCustomers)
-		customers.GET(":id", customerHandler.GetCustomerByID)
+		customers.POST("", customerHandler.CreateCustomer)    // POST /api/customers
+		customers.GET("", customerHandler.GetAllCustomers)    // GET /api/customers
+		customers.GET(":id", customerHandler.GetCustomerByID) // GET /api/customers/:id
 	}
 
-	// ✅ FIXED: Order routes
-	orders := r.Group("/api/orders/")
+	// ✅ CORRECTED: NO trailing slash
+	orders := r.Group("/api/orders")
 	{
-		orders.POST("", orderHandler.CreateOrder)
-		orders.GET("", orderHandler.GetOrders)
-		orders.GET(":id/items", orderHandler.GetOrderItems)
+		orders.POST("", orderHandler.CreateOrder)           // POST /api/orders
+		orders.GET("", orderHandler.GetOrders)              // GET /api/orders
+		orders.GET(":id/items", orderHandler.GetOrderItems) // GET /api/orders/:id/items
 	}
 
 	// Health check

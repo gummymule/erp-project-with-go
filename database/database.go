@@ -20,7 +20,7 @@ func InitDB() error {
 	// Check if we're on Railway (PostgreSQL) or local (SQLite)
 	dbURL := os.Getenv("DATABASE_URL")
 
-	if dbURL != "" && strings.Contains(dbURL, "postgres://") {
+	if dbURL != "" && strings.Contains(dbURL, "postgresql://") {
 		// Railway PostgreSQL
 		driverName = "postgres"
 		DB, err = sql.Open(driverName, dbURL)
@@ -58,7 +58,7 @@ func InitDB() error {
 func createTables() error {
 	// Determine database type for SQL dialect
 	dbURL := os.Getenv("DATABASE_URL")
-	isPostgreSQL := dbURL != "" && strings.Contains(dbURL, "postgres://")
+	isPostgreSQL := dbURL != "" && strings.Contains(dbURL, "postgresql://")
 
 	var productTable, customerTable, orderTable, orderItemTable string
 

@@ -84,7 +84,8 @@ func createTables() error {
 			email VARCHAR(255) UNIQUE NOT NULL,
 			phone VARCHAR(50),
 			address TEXT,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);`
 
 		orderTable = `
@@ -130,7 +131,8 @@ func createTables() error {
 			email TEXT UNIQUE NOT NULL,
 			phone TEXT,
 			address TEXT,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);`
 
 		orderTable = `

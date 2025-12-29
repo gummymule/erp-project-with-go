@@ -13,6 +13,7 @@ type Customer struct {
 	Phone     string    `json:"phone"`
 	Address   string    `json:"address"`
 	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
 }
 
 func NewCustomer(name, email, phone, address string) *Customer {
@@ -23,5 +24,6 @@ func NewCustomer(name, email, phone, address string) *Customer {
 		Phone:     phone,
 		Address:   address,
 		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 }

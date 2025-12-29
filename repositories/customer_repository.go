@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 )
 
 type CustomerRepository struct {
@@ -164,4 +165,33 @@ func (r *CustomerRepository) GetCustomerByID(id string) (*models.Customer, error
 		return nil, err
 	}
 	return customer, nil
+}
+
+func (r *CustomerRepository) UpdateCustomer(customer *models.Customer) error {
+	query := `
+		UPDATE customers 
+		SET name = $1, email = $2, phone = $3, address = $4, updated_at = $5
+		WHERE id = $6`
+
+	customer.UpdatedAt = time.Now()
+	_, err := r.DB.Exec(
+		query,
+		customer.Name,
+		customer.Email,
+		customer.Phone,
+		customer.Address,
+		customer.UpdatedAt,
+		customer.ID,
+	)
+	return err
+}
+
+func (r *CustomerRepository) DeleteCustomer(id string) error {
+	query := `DELETE FROM customers WHERE id = $1`
+	_, err := r.DB.Exec(query, id)
+	if err != nil {
+		log.Printf("Error deleting customer: %v", err)
+		return err
+	}
+	return nil
 }

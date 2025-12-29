@@ -66,9 +66,10 @@ func main() {
 					"delete":   "DELETE /api/products/:id",
 				},
 				"customers": map[string]string{
-					"create":  "POST /api/customers",
-					"get_all": "GET /api/customers",
-					"get_one": "GET /api/customers/:id",
+					"create":   "POST /api/customers",
+					"get_all":  "GET /api/customers",
+					"get_list": "GET /api/customers/list",
+					"get_one":  "GET /api/customers/:id",
 				},
 				"orders": map[string]string{
 					"create":    "POST /api/orders",
@@ -95,9 +96,12 @@ func main() {
 	// Customer routes - FIXED with leading slashes
 	customers := r.Group("/api/customers")
 	{
-		customers.POST("/", customerHandler.CreateCustomer)    // ✅ POST /api/customers/
-		customers.GET("/", customerHandler.GetAllCustomers)    // ✅ GET /api/customers/
-		customers.GET("/:id", customerHandler.GetCustomerByID) // ✅ GET /api/customers/:id
+		customers.POST("/", customerHandler.CreateCustomer)      // ✅ POST /api/customers/
+		customers.GET("/", customerHandler.GetAllCustomers)      // ✅ GET /api/customers/
+		customers.GET("/list", customerHandler.GetListCustomers) // ✅ GET /api/customers/list
+		customers.GET("/:id", customerHandler.GetCustomerByID)   // ✅ GET /api/customers/:id
+		customers.PUT("/:id", customerHandler.UpdateCustomer)    // ✅ PUT /api/customers/:id
+		customers.DELETE("/:id", customerHandler.DeleteCustomer) // ✅ DELETE /api/customers/:id
 	}
 
 	// Order routes - FIXED with leading slashes

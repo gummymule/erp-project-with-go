@@ -1,7 +1,8 @@
 package handlers
 
 import (
-	"net/http"
+	"log"
+	"strings"
 
 	"erp-project/models"
 	"erp-project/repositories"
@@ -21,14 +22,14 @@ func NewCustomerHandler(repo *repositories.CustomerRepository) *CustomerHandler 
 type CreateCustomerRequest struct {
 	Name    string `json:"name" binding:"required,min=2,max=100"`
 	Email   string `json:"email" binding:"required,email"`
-	Phone   string `json:"phone" binding:"omitempty,phone"`
+	Phone   string `json:"phone" binding:"omitempty,min=10,max=20"`
 	Address string `json:"address" binding:"max=200"`
 }
 
 func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
 	var req CreateCustomerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.ValidationErrorResponse(c, "Validation error", err.Error())
 		return
 	}
 
@@ -40,11 +41,18 @@ func (h *CustomerHandler) CreateCustomer(c *gin.Context) {
 	)
 
 	if err := h.repo.CreateCustomer(customer); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create customer"})
+		if strings.Contains(err.Error(), "duplicate key value") ||
+			strings.Contains(err.Error(), "violates unique constraint") {
+			utils.DuplicateErrorResponse(c, "Duplicate email", "A customer with this email already exists")
+			return
+		}
+
+		log.Printf("CreateCustomer error: %v", err)
+		utils.InternalErrorResponse(c, "Failed to create customer", "Database error")
 		return
 	}
 
-	c.JSON(http.StatusCreated, customer)
+	utils.CreatedResponse(c, "Customer created successfully", customer)
 }
 
 func (h *CustomerHandler) GetAllCustomers(c *gin.Context) {
@@ -54,15 +62,16 @@ func (h *CustomerHandler) GetAllCustomers(c *gin.Context) {
 
 	customers, total, err := h.repo.GetCustomerWithPagination(page, pageSize, search, email)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve customers"})
+		log.Printf("GetAllCustomers error: %v", err)
+		utils.InternalErrorResponse(c, "Failed to retrieve customers", "Database error")
 		return
 	}
 
 	totalPages := utils.CalculateTotalPages(total, pageSize)
 
-	response := utils.PaginatedResponse{
-		Data: customers,
-		Pagination: utils.Pagination{
+	paginationData := map[string]interface{}{
+		"customers": customers,
+		"pagination": utils.Pagination{
 			Page:     page,
 			PageSize: pageSize,
 			Total:    total,
@@ -70,19 +79,20 @@ func (h *CustomerHandler) GetAllCustomers(c *gin.Context) {
 		},
 	}
 
-	c.JSON(http.StatusOK, response)
+	utils.SuccessResponse(c, "Customers retrieved successfully", paginationData)
 }
 
 func (h *CustomerHandler) GetCustomerByID(c *gin.Context) {
 	id := c.Param("id")
 	customer, err := h.repo.GetCustomerByID(id)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve customer"})
+		log.Printf("GetCustomerByID error: %v", err)
+		utils.InternalErrorResponse(c, "Failed to retrieve customer", "Database error")
 		return
 	}
 	if customer == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Customer not found"})
+		utils.NotFoundResponse(c, "Customer not found")
 		return
 	}
-	c.JSON(http.StatusOK, customer)
+	utils.SuccessResponse(c, "Customer retrieved successfully", customer)
 }

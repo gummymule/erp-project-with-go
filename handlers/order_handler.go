@@ -1,10 +1,11 @@
 package handlers
 
 import (
-	"net/http"
+	"log"
 
 	"erp-project/models"
 	"erp-project/repositories"
+	"erp-project/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -39,14 +40,20 @@ type OrderItemRequest struct {
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	var req CreateOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.ValidationErrorResponse(c, "Validation error", err.Error())
 		return
 	}
 
-	// Verify costumer exists
+	// Verify customer exists
 	customer, err := h.customerRepo.GetCustomerByID(req.CustomerID)
-	if err != nil || customer == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid customer ID"})
+	if err != nil {
+		log.Printf("CreateOrder - GetCustomerByID error: %v", err)
+		utils.InternalErrorResponse(c, "Failed to validate customer", "Database error")
+		return
+	}
+
+	if customer == nil {
+		utils.BadRequestResponse(c, "Invalid customer ID", "Customer not found")
 		return
 	}
 
@@ -57,14 +64,28 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	for _, itemReq := range req.Items {
 		// get product
 		product, err := h.productRepo.GetProductByID(itemReq.ProductID)
-		if err != nil || product == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid product ID: " + itemReq.ProductID})
+		if err != nil {
+			log.Printf("CreateOrder - GetProductByID error: %v", err)
+			utils.InternalErrorResponse(c, "Failed to validate product", "Database error")
+			return
+		}
+
+		if product == nil {
+			utils.BadRequestResponse(c, "Invalid product ID", map[string]interface{}{
+				"product_id": itemReq.ProductID,
+				"message":    "Product not found",
+			})
 			return
 		}
 
 		// check stock
 		if product.Quantity < itemReq.Quantity {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Insufficient stock for product: " + product.Name})
+			utils.BadRequestResponse(c, "Insufficient stock", map[string]interface{}{
+				"product_id":   itemReq.ProductID,
+				"product_name": product.Name,
+				"available":    product.Quantity,
+				"requested":    itemReq.Quantity,
+			})
 			return
 		}
 
@@ -87,27 +108,40 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 
 	// save order with items (transaction)
 	if err := h.orderRepo.CreateOrderWithItems(order, orderItems); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create order"})
+		log.Printf("CreateOrder - CreateOrderWithItems error: %v", err)
+		utils.InternalErrorResponse(c, "Failed to create order", "Database error")
 		return
 	}
 
-	// get order details with items for response
-	orderWithItems := gin.H{
-		"order": order,
+	// Prepare response data
+	responseData := map[string]interface{}{
+		"order": map[string]interface{}{
+			"id":            order.ID,
+			"customer_id":   order.CustomerID,
+			"customer_name": customer.Name,
+			"total_amount":  order.TotalAmount,
+			"status":        order.Status,
+			"order_date":    order.OrderDate,
+		},
 		"items": orderItems,
+		"summary": map[string]interface{}{
+			"total_items":  len(orderItems),
+			"total_amount": totalAmount,
+		},
 	}
 
-	c.JSON(http.StatusCreated, orderWithItems)
+	utils.CreatedResponse(c, "Order created successfully", responseData)
 }
 
 func (h *OrderHandler) GetOrders(c *gin.Context) {
 	orders, err := h.orderRepo.GetOrders()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch orders"})
+		log.Printf("GetOrders error: %v", err)
+		utils.InternalErrorResponse(c, "Failed to fetch orders", "Database error")
 		return
 	}
 
-	c.JSON(http.StatusOK, orders)
+	utils.SuccessResponse(c, "Orders retrieved successfully", orders)
 }
 
 func (h *OrderHandler) GetOrderItems(c *gin.Context) {
@@ -115,9 +149,10 @@ func (h *OrderHandler) GetOrderItems(c *gin.Context) {
 
 	items, err := h.orderRepo.GetOrderItems(orderID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch order items"})
+		log.Printf("GetOrderItems error: %v", err)
+		utils.InternalErrorResponse(c, "Failed to fetch order items", "Database error")
 		return
 	}
 
-	c.JSON(http.StatusOK, items)
+	utils.SuccessResponse(c, "Order items retrieved successfully", items)
 }

@@ -131,6 +131,30 @@ func (h *ProductHandler) GetProductByID(c *gin.Context) {
 	utils.SuccessResponse(c, "Product retrieved successfully", product)
 }
 
+// Add these methods to product_handler.go
+
+func (h *ProductHandler) GetProductSuppliers(c *gin.Context) {
+	productID := c.Param("id")
+
+	// You'll need to inject supplier repository into ProductHandler
+	// For now, we'll return a placeholder
+	utils.SuccessResponse(c, "Product suppliers endpoint (to be implemented)", map[string]interface{}{
+		"product_id": productID,
+		"message":    "This endpoint will return all suppliers for this product",
+	})
+}
+
+func (h *ProductHandler) GetProductInventory(c *gin.Context) {
+	productID := c.Param("id")
+
+	// You'll need to inject warehouse repository into ProductHandler
+	// For now, we'll return a placeholder
+	utils.SuccessResponse(c, "Product inventory endpoint (to be implemented)", map[string]interface{}{
+		"product_id": productID,
+		"message":    "This endpoint will return inventory across all warehouses",
+	})
+}
+
 func (h *ProductHandler) UpdateProduct(c *gin.Context) {
 	id := c.Param("id")
 

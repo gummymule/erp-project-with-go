@@ -26,11 +26,15 @@ func main() {
 	productRepo := repositories.NewProductRepository(database.DB)
 	customerRepo := repositories.NewCustomerRepository(database.DB)
 	orderRepo := repositories.NewOrderRepository(database.DB)
+	supplierRepo := repositories.NewSupplierRepository(database.DB)
+	warehouseRepo := repositories.NewWarehouseRepository(database.DB)
 
 	// Initialize handlers
 	productHandler := handlers.NewProductHandler(productRepo)
 	customerHandler := handlers.NewCustomerHandler(customerRepo)
 	orderHandler := handlers.NewOrderHandler(orderRepo, productRepo, customerRepo)
+	supplierHandler := handlers.NewSupplierHandler(supplierRepo)
+	warehouseHandler := handlers.NewWarehouseHandler(warehouseRepo)
 
 	// Create Gin router
 	r := gin.Default()
@@ -76,6 +80,27 @@ func main() {
 					"get_all":   "GET /api/orders",
 					"get_items": "GET /api/orders/:id/items",
 				},
+				"suppliers": map[string]string{
+					"create":       "POST /api/suppliers",
+					"get_all":      "GET /api/suppliers",
+					"get_one":      "GET /api/suppliers/:id",
+					"update":       "PUT /api/suppliers/:id",
+					"delete":       "DELETE /api/suppliers/:id",
+					"add_product":  "POST /api/suppliers/:id/products",
+					"get_products": "GET /api/suppliers/:id/products",
+				},
+				"warehouses": map[string]string{
+					"create":              "POST /api/warehouses",
+					"get_all":             "GET /api/warehouses",
+					"get_one":             "GET /api/warehouses/:id",
+					"update":              "PUT /api/warehouses/:id",
+					"delete":              "DELETE /api/warehouses/:id",
+					"add_location":        "POST /api/warehouses/:id/locations",
+					"get_locations":       "GET /api/warehouses/:id/locations",
+					"available_locations": "GET /api/warehouses/:id/locations/available",
+					"add_inventory":       "POST /api/warehouses/:id/inventory",
+					"get_inventory":       "GET /api/warehouses/:id/inventory",
+				},
 				"health":   "GET /health",
 				"debug_db": "GET /debug/db",
 			},
@@ -112,6 +137,41 @@ func main() {
 		orders.GET("/:id/items", orderHandler.GetOrderItems) // ✅ GET /api/orders/:id/items
 	}
 
+	// Supplier routes
+	suppliers := r.Group("/api/suppliers")
+	{
+		suppliers.POST("/", supplierHandler.CreateSupplier)
+		suppliers.GET("/", supplierHandler.GetAllSuppliers)
+		suppliers.GET("/:id", supplierHandler.GetSupplierByID)
+		suppliers.PUT("/:id", supplierHandler.UpdateSupplier)
+		suppliers.DELETE("/:id", supplierHandler.DeleteSupplier)
+
+		// Product-Supplier relationships
+		suppliers.POST("/:id/products", supplierHandler.AddProductSupplier)
+		suppliers.GET("/:id/products", supplierHandler.GetSupplierProducts)
+		suppliers.DELETE("/products/:product_supplier_id", supplierHandler.RemoveProductSupplier)
+	}
+
+	// Warehouse routes
+	warehouses := r.Group("/api/warehouses")
+	{
+		warehouses.POST("/", warehouseHandler.CreateWarehouse)
+		warehouses.GET("/", warehouseHandler.GetAllWarehouses)
+		warehouses.GET("/:id", warehouseHandler.GetWarehouseByID)
+		warehouses.PUT("/:id", warehouseHandler.UpdateWarehouse)
+		warehouses.DELETE("/:id", warehouseHandler.DeleteWarehouse)
+
+		// Location management
+		warehouses.POST("/:id/locations", warehouseHandler.CreateLocation)
+		warehouses.GET("/:id/locations", warehouseHandler.GetWarehouseLocations)
+		warehouses.GET("/:id/locations/available", warehouseHandler.GetAvailableLocations)
+
+		// Inventory management
+		warehouses.POST("/:id/inventory", warehouseHandler.CreateInventory)
+		warehouses.GET("/:id/inventory", warehouseHandler.GetWarehouseInventory)
+		warehouses.PUT("/inventory/:inventory_id", warehouseHandler.UpdateInventory)
+	}
+
 	// Health check with standardized response format
 	r.GET("/health", func(c *gin.Context) {
 		// Check database connection
@@ -131,7 +191,7 @@ func main() {
 
 	// Debug endpoint to test database with standardized response format
 	r.GET("/debug/db", func(c *gin.Context) {
-		var productCount, customerCount, orderCount int
+		var productCount, customerCount, orderCount, supplierCount, warehouseCount int
 		var errorMsg string
 
 		// Get counts with error handling
@@ -155,12 +215,14 @@ func main() {
 		}
 
 		utils.SuccessResponse(c, "Database statistics", map[string]interface{}{
-			"database":        "connected",
-			"products_count":  productCount,
-			"customers_count": customerCount,
-			"orders_count":    orderCount,
-			"total_records":   productCount + customerCount + orderCount,
-			"timestamp":       time.Now().Format(time.RFC3339),
+			"database":         "connected",
+			"products_count":   productCount,
+			"customers_count":  customerCount,
+			"orders_count":     orderCount,
+			"suppliers_count":  supplierCount,
+			"warehouses_count": warehouseCount,
+			"total_records":    productCount + customerCount + orderCount + supplierCount + warehouseCount,
+			"timestamp":        time.Now().Format(time.RFC3339),
 		})
 	})
 

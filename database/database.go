@@ -142,7 +142,7 @@ func createTables() error {
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-			FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
+			FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE,
 			UNIQUE(product_id, supplier_id)
 		);`
 

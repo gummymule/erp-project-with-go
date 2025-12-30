@@ -143,7 +143,7 @@ func createTables() error {
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
 			FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
-			UNIQUE (product_id, supplier_id)
+			UNIQUE(product_id, supplier_id)
 		);`
 
 		warehouseTable = `
@@ -176,7 +176,7 @@ func createTables() error {
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE,
-			UNIQUE (warehouse_id, location_code)
+			UNIQUE(warehouse_id, location_code)
 		);`
 
 		inventoryTable = `
@@ -196,7 +196,7 @@ func createTables() error {
 			FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
 			FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE,
 			FOREIGN KEY (location_id) REFERENCES warehouse_locations(id) ON DELETE SET NULL,
-			UNIQUE (product_id, warehouse_id, location_id)
+			UNIQUE(product_id, warehouse_id, location_id)
 		);`
 	} else {
 		// SQLite syntax (your original)
@@ -275,7 +275,7 @@ func createTables() error {
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (product_id) REFERENCES products(id),
 			FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
-			UNIQUE (product_id, supplier_id)
+			UNIQUE(product_id, supplier_id)
 		);`
 
 		warehouseTable = `
@@ -308,7 +308,7 @@ func createTables() error {
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
-			UNIQUE (warehouse_id, location_code)
+			UNIQUE(warehouse_id, location_code)
 		);`
 
 		inventoryTable = `
@@ -328,7 +328,7 @@ func createTables() error {
 			FOREIGN KEY (product_id) REFERENCES products(id),
 			FOREIGN KEY (warehouse_id) REFERENCES warehouses(id),
 			FOREIGN KEY (location_id) REFERENCES warehouse_locations(id),
-			UNIQUE (product_id, warehouse_id, location_id)
+			UNIQUE(product_id, warehouse_id, location_id)
 		);`
 	}
 
